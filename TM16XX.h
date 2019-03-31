@@ -70,6 +70,8 @@ class TM16XX
     virtual void sendCommand(byte led);
     virtual void sendData(byte add, byte data);
     virtual void send(byte data);
+	/** Send data with delay if defined fast MCU */
+	virtual void writeDigitalDataToPin(byte pin, byte data);
     virtual byte receive();
 
     byte displays;

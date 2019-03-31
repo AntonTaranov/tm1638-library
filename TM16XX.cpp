@@ -25,6 +25,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "TM16XX.h"
 #include "string.h"
 
+#if defined(ESP8266) || defined(ARDUINO_ARCH_ESP32)
+#define DELAY_BETWEEN_SEND
+#endif
+
+#define MAXIMUM_INTENSITY ((byte)7)
+
 TM16XX::TM16XX(byte dataPin, byte clockPin, byte strobePin, byte displays, boolean activateDisplay,
 	byte intensity)
 {
@@ -41,9 +47,9 @@ TM16XX::TM16XX(byte dataPin, byte clockPin, byte strobePin, byte displays, boole
   digitalWrite(clockPin, HIGH);
 
   sendCommand(0x40);
-  sendCommand(0x80 | (activateDisplay ? 8 : 0) | min(7, intensity));
+  sendCommand(0x80 | (activateDisplay ? 8 : 0) | min(MAXIMUM_INTENSITY, intensity));
 
-  digitalWrite(strobePin, LOW);
+  writeDigitalDataToPin(strobePin, LOW);
   send(0xC0);
   for (int i = 0; i < 16; i++) {
     send(0x00);
@@ -53,11 +59,11 @@ TM16XX::TM16XX(byte dataPin, byte clockPin, byte strobePin, byte displays, boole
 
 void TM16XX::setupDisplay(boolean active, byte intensity)
 {
-  sendCommand(0x80 | (active ? 8 : 0) | min(7, intensity));
+  sendCommand(0x80 | (active ? 8 : 0) | min(MAXIMUM_INTENSITY, intensity));
 
   // necessary for the TM1640
   digitalWrite(strobePin, LOW);
-  digitalWrite(clockPin, LOW);
+  writeDigitalDataToPin(clockPin, LOW);
   digitalWrite(clockPin, HIGH);
   digitalWrite(strobePin, HIGH);
 }
@@ -121,7 +127,7 @@ void TM16XX::setDisplayToString(const String string, const word dots, const byte
 
 void TM16XX::sendCommand(byte cmd)
 {
-  digitalWrite(strobePin, LOW);
+  writeDigitalDataToPin(strobePin, LOW);
   send(cmd);
   digitalWrite(strobePin, HIGH);
 }
@@ -138,11 +144,19 @@ void TM16XX::sendData(byte address, byte data)
 void TM16XX::send(byte data)
 {
   for (int i = 0; i < 8; i++) {
-    digitalWrite(clockPin, LOW);
-    digitalWrite(dataPin, data & 1 ? HIGH : LOW);
+    writeDigitalDataToPin(clockPin, LOW);
+    writeDigitalDataToPin(dataPin, data & 1 ? HIGH : LOW);
     data >>= 1;
-    digitalWrite(clockPin, HIGH);
+    writeDigitalDataToPin(clockPin, HIGH);
   }
+}
+
+void TM16XX::writeDigitalDataToPin(byte pin, byte data)
+{
+	digitalWrite(pin, data);
+	#ifdef DELAY_BETWEEN_SEND
+		delayMicroseconds(2);
+	#endif
 }
 
 byte TM16XX::receive()
@@ -156,7 +170,7 @@ byte TM16XX::receive()
   for (int i = 0; i < 8; i++) {
     temp >>= 1;
 
-    digitalWrite(clockPin, LOW);
+    writeDigitalDataToPin(clockPin, LOW);
 
     if (digitalRead(dataPin)) {
       temp |= 0x80;
@@ -167,7 +181,7 @@ byte TM16XX::receive()
 
   // Pull-up off
   pinMode(dataPin, OUTPUT);
-  digitalWrite(dataPin, LOW);
+  writeDigitalDataToPin(dataPin, LOW);
 
   return temp;
 }
@@ -176,4 +190,3 @@ byte TM16XX::receive()
 // empty implementation instead of pure virtual for older Arduino IDE
 void TM16XX::sendChar(byte pos, byte data, boolean dot) {}
 #endif
-
